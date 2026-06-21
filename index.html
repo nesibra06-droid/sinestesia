@@ -1,0 +1,736 @@
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sinestesia</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;1,9..144,400;1,9..144,500&family=Space+Grotesk:wght@400;500&family=Space+Mono:wght@400&display=swap" rel="stylesheet" />
+
+<style>
+  :root{
+    --void:#08070c;
+    --ink:#eceaf4;
+    --ink-soft:rgba(236,234,244,.55);
+    --ink-faint:rgba(236,234,244,.32);
+    --line:rgba(236,234,244,.10);
+    --glass:rgba(255,255,255,.035);
+    --accent:#b8a9ff;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--void);color:var(--ink);
+    font-family:"Space Grotesk",system-ui,sans-serif;overflow:hidden;-webkit-font-smoothing:antialiased}
+  #field{position:fixed;inset:0;display:block;z-index:0}
+  .vignette{position:fixed;inset:0;z-index:1;pointer-events:none;
+    background:radial-gradient(120% 90% at 50% 42%, transparent 40%, rgba(4,3,8,.55) 100%)}
+  .stage{position:fixed;inset:0;z-index:2;display:flex;flex-direction:column;
+    padding:clamp(18px,4vw,40px);pointer-events:none}
+  .stage > *{pointer-events:auto}
+  header{display:flex;align-items:baseline;justify-content:space-between;gap:16px}
+  .wordmark{font-family:"Space Mono",monospace;letter-spacing:.42em;font-size:12px;
+    text-transform:uppercase;color:var(--ink-soft);padding-left:.42em}
+  .tagline{font-family:"Space Mono",monospace;font-size:11px;color:var(--ink-faint);
+    letter-spacing:.04em;text-align:right;max-width:42ch}
+  .center{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;gap:26px}
+
+  .prompt-q{font-family:"Fraunces",serif;font-style:italic;font-weight:400;
+    font-size:clamp(34px,7vw,72px);line-height:1.02;letter-spacing:-.01em;margin:0}
+  .ask{display:flex;gap:10px;align-items:stretch;width:min(560px,86vw)}
+  .ask input{flex:1;background:var(--glass);border:1px solid var(--line);border-radius:999px;
+    color:var(--ink);font-family:"Space Grotesk",sans-serif;font-size:16px;padding:15px 22px;
+    outline:none;backdrop-filter:blur(10px);transition:border-color .25s,background .25s}
+  .ask input::placeholder{color:var(--ink-faint)}
+  .ask input:focus{border-color:var(--accent);background:rgba(255,255,255,.06)}
+  .btn{border:1px solid var(--line);background:var(--glass);color:var(--ink);
+    font-family:"Space Grotesk",sans-serif;border-radius:999px;cursor:pointer;
+    padding:14px 22px;font-size:15px;white-space:nowrap;backdrop-filter:blur(10px);
+    transition:transform .12s ease,border-color .25s,background .25s,color .25s}
+  .btn:hover{border-color:var(--accent)}
+  .btn:active{transform:translateY(1px)}
+  .btn-primary{border-color:transparent;background:var(--accent);
+    background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 90%,white),var(--accent));
+    color:#0a0810;font-weight:500}
+  .btn:disabled{opacity:.4;cursor:default}
+  .examples{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:640px}
+  .chip{font-family:"Space Mono",monospace;font-size:12px;color:var(--ink-soft);
+    background:transparent;border:1px solid var(--line);border-radius:999px;padding:7px 13px;
+    cursor:pointer;transition:border-color .2s,color .2s,background .2s}
+  .chip:hover{border-color:var(--accent);color:var(--ink);background:rgba(255,255,255,.03)}
+
+  .loading{font-family:"Fraunces",serif;font-style:italic;font-size:clamp(26px,5vw,46px);
+    color:var(--ink-soft)}
+  .loading .dots::after{content:"";animation:dots 1.4s steps(4,end) infinite}
+  @keyframes dots{0%{content:""}25%{content:"·"}50%{content:"··"}75%{content:"···"}100%{content:""}}
+
+  .now{display:flex;flex-direction:column;align-items:center;gap:16px;max-width:780px;
+    opacity:0;transform:translateY(8px);transition:opacity .9s ease,transform .9s ease}
+  .now.in{opacity:1;transform:none}
+  .feeling-echo{font-family:"Space Mono",monospace;font-size:11px;letter-spacing:.18em;
+    text-transform:uppercase;color:var(--ink-faint)}
+  .title{font-family:"Fraunces",serif;font-style:italic;font-weight:400;
+    font-size:clamp(40px,8vw,88px);line-height:.98;letter-spacing:-.02em;margin:0;
+    text-shadow:0 0 38px color-mix(in srgb,var(--accent) 45%,transparent);
+    transition:opacity .5s ease}
+  .desc{font-size:clamp(14px,2.2vw,17px);color:var(--ink-soft);max-width:46ch;line-height:1.5;margin:0}
+
+  /* lectura de afecto: las dos dimensiones de la ciencia, visibles */
+  .affect{display:flex;gap:18px;justify-content:center;margin-top:4px;flex-wrap:wrap}
+  .dim{display:flex;flex-direction:column;gap:5px;width:130px}
+  .dim .lab{font-family:"Space Mono",monospace;font-size:10px;letter-spacing:.08em;
+    color:var(--ink-faint);text-transform:uppercase;display:flex;justify-content:space-between}
+  .dim .track{height:3px;border-radius:3px;background:rgba(255,255,255,.08);overflow:hidden}
+  .dim .fill{height:100%;background:var(--accent);width:50%;border-radius:3px;
+    transition:width .8s cubic-bezier(.2,.8,.2,1)}
+
+  .readout{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:2px}
+  .stat{font-family:"Space Mono",monospace;font-size:11.5px;letter-spacing:.05em;
+    color:var(--ink-soft);border:1px solid var(--line);border-radius:6px;padding:6px 11px;
+    background:rgba(255,255,255,.02)}
+  .stat b{color:var(--ink);font-weight:400}
+
+  .transport{display:flex;gap:10px;align-items:center;justify-content:center;padding-top:6px}
+  .icon-btn{width:54px;height:54px;border-radius:50%;border:1px solid var(--line);
+    background:var(--glass);color:var(--ink);cursor:pointer;font-size:18px;display:grid;
+    place-items:center;backdrop-filter:blur(10px);transition:transform .12s,border-color .25s}
+  .icon-btn.main{width:66px;height:66px;border-color:transparent;background:var(--accent);
+    background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 92%,white),var(--accent));
+    color:#0a0810}
+  .icon-btn:hover{border-color:var(--accent)}
+  .icon-btn:active{transform:translateY(1px)}
+  .ctl{display:flex;flex-direction:column;align-items:center}
+  .ctl-label{font-family:"Space Mono",monospace;font-size:10px;color:var(--ink-faint);
+    margin-top:6px;letter-spacing:.05em}
+
+  .actions{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;padding-top:6px}
+  .act{font-family:"Space Mono",monospace;font-size:11px;letter-spacing:.04em;color:var(--ink-soft);
+    border:1px solid var(--line);background:rgba(255,255,255,.02);border-radius:999px;
+    padding:8px 14px;cursor:pointer;transition:border-color .2s,color .2s,background .2s}
+  .act:hover{border-color:var(--accent);color:var(--ink)}
+  .gallery{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;max-width:700px;margin-top:8px}
+  .gitem{font-family:"Space Mono",monospace;font-size:11px;color:var(--ink-soft);
+    border:1px solid var(--line);border-radius:8px;padding:8px 11px;cursor:pointer;
+    background:rgba(255,255,255,.02);display:flex;align-items:center;gap:8px;transition:border-color .2s}
+  .gitem:hover{border-color:var(--accent);color:var(--ink)}
+  .gitem .sw{width:10px;height:10px;border-radius:50%;flex:none}
+  .gitem .x{opacity:.4}
+  .gitem .x:hover{opacity:1;color:#ff9f9f}
+  .toast{position:fixed;left:50%;bottom:64px;transform:translateX(-50%);z-index:5;
+    font-family:"Space Mono",monospace;font-size:12px;color:var(--ink);
+    background:rgba(20,18,28,.92);border:1px solid var(--line);border-radius:999px;padding:9px 16px;
+    opacity:0;transition:opacity .3s;pointer-events:none;backdrop-filter:blur(8px);max-width:80vw}
+  .toast.in{opacity:1}
+
+  footer{display:flex;justify-content:center;font-family:"Space Mono",monospace;font-size:10.5px;
+    color:var(--ink-faint);letter-spacing:.05em}
+  .ai-on{color:var(--accent)}
+  .err{color:#ff9f9f}
+  .hidden{display:none!important}
+  @media (max-width:560px){.ask{flex-direction:column}.tagline{display:none}}
+</style>
+
+<canvas id="field"></canvas>
+<div class="vignette"></div>
+
+<div class="stage">
+  <header>
+    <div class="wordmark">Sinestesia</div>
+    <div class="tagline">un sentimiento, leído por la ciencia, traducido a sonido y luz</div>
+  </header>
+
+  <div class="center">
+    <div id="idle">
+      <h1 class="prompt-q">¿Qué sientes?</h1>
+      <div class="ask">
+        <input id="moodInput" type="text" autocomplete="off"
+               placeholder="describe un sentimiento, un momento, un lugar…" />
+        <button id="goBtn" class="btn btn-primary">Generar</button>
+      </div>
+      <div class="examples" id="examples"></div>
+    </div>
+
+    <div id="loading" class="loading hidden"><span>Leyendo</span><span class="dots"></span></div>
+
+    <div id="now" class="now hidden">
+      <div class="feeling-echo" id="echo"></div>
+      <h1 class="title" id="title"></h1>
+      <p class="desc" id="desc"></p>
+      <div class="affect">
+        <div class="dim">
+          <div class="lab"><span>valencia</span><span id="vVal">·</span></div>
+          <div class="track"><div class="fill" id="vFill"></div></div>
+        </div>
+        <div class="dim">
+          <div class="lab"><span>activación</span><span id="aVal">·</span></div>
+          <div class="track"><div class="fill" id="aFill"></div></div>
+        </div>
+      </div>
+      <div class="readout" id="readout"></div>
+      <div class="transport">
+        <div class="ctl"><button class="icon-btn" id="regenBtn" title="Reinterpretar">&#8635;</button><div class="ctl-label">de nuevo</div></div>
+        <div class="ctl"><button class="icon-btn main" id="playBtn" title="Pausar">&#10074;&#10074;</button><div class="ctl-label" id="playLabel">pausar</div></div>
+        <div class="ctl"><button class="icon-btn" id="newBtn" title="Otro sentimiento">&#43;</button><div class="ctl-label">otro</div></div>
+      </div>
+      <div class="actions">
+        <button class="act" id="saveImgBtn">&#8595; guardar imagen</button>
+        <button class="act" id="shareBtn">&#10219; copiar enlace</button>
+        <button class="act" id="saveBtn">&#10038; guardar pieza</button>
+        <button class="act" id="galToggle">&#9638; galería</button>
+      </div>
+      <div class="gallery hidden" id="gallery"></div>
+    </div>
+  </div>
+
+  <footer><span id="status">listo</span></footer>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+/* ============================================================
+   SINESTESIA v2
+   El núcleo es local y se basa en ciencia del afecto:
+   - texto -> dimensiones (valencia, activación, brillo, calidez, tensión, densidad)
+     modelo circumplejo de Russell (afecto = valencia x activación)
+   - dimensiones -> música  (Juslin/Hevner: modo, tempo, articulación, registro)
+   - dimensiones -> color   (Valdez & Mehrabian: matiz, saturación, luminosidad)
+   - correspondencias crossmodales (Spence/Marks): tono->brillo, tempo->movimiento
+   La IA es una capa OPCIONAL que sólo añade título/descripción poéticos y matiz.
+   ============================================================ */
+
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const lerp=(a,b,t)=>a+(b-a)*t;
+const el=id=>document.getElementById(id);
+
+/* ---------- léxico afectivo (raíces en español + algo de inglés) ---------- */
+const LEX = {
+  vPos:["feliz","alegr","alegría","amor","amar","amo ","cariñ","ternur","esperanz","ilusión","ilusion","luz","brill","sonri","libert","paz","calma","sereno","seren","plen","gozo","dicha","gracia","gratitud","hogar","abrazo","dorad","florec","renac","sol ","soleado","júbilo","jubilo","euforia","éxtasis","extasis","maravill","bonit","hermos","love","joy","hope","bright","warm","peace","bliss"],
+  vNeg:["triste","tristeza","dolor","duele","llanto","llor","pena","luto","miedo","temor","soledad","solo ","sola ","vací","vacio","angustia","ansiedad","desesper","rabia","ira","odio","furia","oscur","sombra","frío","frio","perd","ruin","muerte","morir","nostalg","melanc","gris","abismo","caos","tormenta","herid","rota","roto","sad","fear","lonely","empty","grief","rage","dark","cold"],
+  aHi:["euforia","fiesta","baile","bailar","energía","energia","eléctric","electric","neón","neon","explos","adrenalina","correr","grito","gritar","pánico","panico","intens","vértigo","vertigo","caos","tormenta","frenét","frenet","veloz","rápid","rapid","latido","pulso","fuego","llama","ardor","furia","rabia","ira","party","loud","fast","wild","storm"],
+  aLo:["calma","calm","paz","quiet","lent","dormir","sueñ","suen","niebla","bruma","suave","descans","silenc","flot","seren","tranquil","reposo","susurro","leve","tenue","derret","still","slow","soft","sleep","fog","gentle"],
+  bHi:["luz","sol ","soleado","brill","neón","neon","día","dia ","blanco","dorad","claro","destell","chispa","resplandor","relámpag","relampag","estrella","bright","shine","glow","spark","day"],
+  bLo:["noche","oscur","sombra","negro","penumbra","abismo","profund","tinieblas","subterrán","caverna","apag","night","dark","shadow","deep"],
+  wHi:["sol ","fuego","llama","calor","cálid","calid","dorad","ámbar","ambar","hogar","abrazo","otoñ","oton","atardecer","ocaso","brasas","terracota","sangre","fire","warm","amber","autumn","sunset","ember"],
+  wLo:["nieve","hielo","frío","frio","invierno","azul","metal","cristal","glacial","ártic","artic","luna","plata","acero","mar ","océano","oceano","snow","ice","cold","winter","blue","steel","moon"],
+  tHi:["miedo","temor","angustia","ansiedad","peligro","tormenta","caos","filo","tensión","tension","inquiet","pesadilla","acech","amenaza","grito","pánico","panico","vértigo","vertigo","abismo","herid","dread","anxiety","danger","tense","threat"],
+  dHi:["ciudad","multitud","caos","fiesta","tráfico","trafico","frenét","frenet","mil ","enjambre","tormenta","metrópoli","metropoli","ruido","crowd","city","traffic","swarm","noise"],
+  dLo:["vací","vacio","solo ","sola ","soledad","desierto","silenc","inmens","abismo","calma","horizonte","planicie","quiet","empty","desert","vast","alone"]
+};
+/* escenarios/imágenes -> matiz base e indicio de modo visual */
+const SETTINGS = [
+  {k:["noche","madrugada","estrella","luna","night","midnight"], name:"noche",  hue:248, adj:{brightness:-0.5,arousal:-0.05}, render:"aurora"},
+  {k:["mar","océano","oceano","agua","ola","río","rio","lago","ocean","water","sea","wave"], name:"agua", hue:198, adj:{warmth:-0.3}, render:"waves"},
+  {k:["lluvia","llueve","rain","aguacero","chubasco"], name:"lluvia", hue:212, adj:{arousal:0.05}, render:"rain"},
+  {k:["tormenta","trueno","relámpag","relampag","storm","thunder"], name:"tormenta", hue:214, adj:{arousal:0.18,tension:0.25,warmth:-0.2}, render:"rain"},
+  {k:["fuego","llama","brasas","incendio","hoguera","fire","flame","ember"], name:"fuego", hue:18, adj:{warmth:0.6,arousal:0.12,brightness:0.2}, render:"embers"},
+  {k:["nieve","hielo","invierno","escarcha","snow","ice","frost","winter"], name:"nieve", hue:205, adj:{warmth:-0.6,brightness:0.35,arousal:-0.1}, render:"frost"},
+  {k:["atardecer","ocaso","amanecer","crepúsculo","crepusculo","sunset","dawn","dusk"], name:"ocaso", hue:24, adj:{warmth:0.45,brightness:0.1}, render:"aurora"},
+  {k:["ciudad","calle","neón","neon","metrópoli","metropoli","city","street","downtown"], name:"ciudad", hue:292, adj:{arousal:0.15,brightness:0.15}, render:"pulse"},
+  {k:["bosque","campo","montaña","montana","árbol","arbol","selva","jardín","jardin","forest","nature","mountain"], name:"naturaleza", hue:135, adj:{warmth:0.05}, render:"drift"}
+];
+
+/* ---------- análisis: texto -> dimensiones de afecto ---------- */
+function analyze(text){
+  const t=" "+(text||"").toLowerCase()+" ";
+  const count=arr=>arr.reduce((n,w)=>n+(t.includes(w)?1:0),0);
+  let v = count(LEX.vPos)-count(LEX.vNeg);
+  let a = count(LEX.aHi)-count(LEX.aLo);
+  let b = count(LEX.bHi)-count(LEX.bLo);
+  let w = count(LEX.wHi)-count(LEX.wLo);
+  let te= count(LEX.tHi);
+  let d = count(LEX.dHi)-count(LEX.dLo);
+
+  // detectar escenario
+  let setting=null;
+  for(const s of SETTINGS){ if(s.k.some(k=>t.includes(k))){ setting=s; break; } }
+
+  let dims={
+    valence:   Math.tanh(v*0.7),
+    arousal:   clamp(0.45 + a*0.14, 0, 1),
+    brightness:Math.tanh(b*0.6),
+    warmth:    Math.tanh(w*0.6),
+    tension:   clamp(te*0.22, 0, 1),
+    density:   clamp(0.45 + d*0.16, 0, 1)
+  };
+  if(setting && setting.adj){
+    for(const k in setting.adj){
+      dims[k]=clamp((dims[k]||0)+setting.adj[k], k==="valence"||k==="brightness"||k==="warmth"?-1:0, 1);
+    }
+  }
+  return {dims, setting, text};
+}
+
+/* ---------- color: dimensiones -> paleta (HSL, ciencia del color) ---------- */
+function hsl(h,s,l){
+  h=((h%360)+360)%360; s/=100; l/=100;
+  const c=(1-Math.abs(2*l-1))*s, x=c*(1-Math.abs((h/60)%2-1)), m=l-c/2;
+  let r,g,b;
+  if(h<60)[r,g,b]=[c,x,0]; else if(h<120)[r,g,b]=[x,c,0]; else if(h<180)[r,g,b]=[0,c,x];
+  else if(h<240)[r,g,b]=[0,x,c]; else if(h<300)[r,g,b]=[x,0,c]; else [r,g,b]=[c,0,x];
+  const to=val=>("0"+Math.round((val+m)*255).toString(16)).slice(-2);
+  return "#"+to(r)+to(g)+to(b);
+}
+function deriveHue(dims,setting){
+  if(setting) return setting.hue;
+  if(dims.valence>0.15)  return dims.warmth>=0 ? 40 : 165;          // gozo cálido / fresco
+  if(dims.valence<-0.15) return dims.tension>0.5 ? 358 : 234;       // furia roja / tristeza índigo
+  return 255;                                                       // neutro violeta
+}
+function buildPalette(dims,setting){
+  const hue=deriveHue(dims,setting);
+  const sat=clamp(30 + dims.arousal*50 + dims.tension*14, 14, 94);
+  const lite=clamp(48 + dims.brightness*22, 20, 80);
+  const warmShift=dims.warmth>0?-14:14;
+  const accentHue = hue + (dims.tension>0.55 ? 24 : 18);
+  return [
+    hsl(hue,            sat*0.65, clamp(lite-28,8,42)),   // base oscura (halo de fondo)
+    hsl(hue+warmShift,  sat,       clamp(lite-8,16,60)),
+    hsl(hue,            sat,       lite),
+    hsl(accentHue,      clamp(sat+10,0,100), clamp(lite+16,32,88)), // acento brillante
+    hsl(hue-warmShift,  clamp(sat+6,0,100),  clamp(lite+6,28,84))
+  ];
+}
+
+/* ---------- modo visual según contexto ---------- */
+function pickRender(dims,setting){
+  if(setting && setting.render) return setting.render;
+  if(dims.tension>0.55 && dims.arousal>0.55) return "pulse";
+  if(dims.arousal>0.62 && dims.valence>0.15) return "bloom";
+  if(dims.warmth>0.35 && dims.arousal>0.45)  return "embers";
+  if(dims.valence<-0.2 && dims.arousal>0.4)  return "rain";
+  if(dims.brightness<-0.2 && dims.arousal<0.4) return "aurora";
+  if(dims.valence>0.2 && dims.arousal<0.45)  return "aurora";
+  return "drift";
+}
+
+/* ---------- música: dimensiones -> partitura ---------- */
+function pickScale(dims){
+  if(dims.tension>0.6) return "phrygian";
+  if(dims.valence>0.25) return dims.brightness>0.2 ? "lydian" : (dims.arousal>0.55?"mixolydian":"major");
+  if(dims.valence<-0.2) return dims.arousal>0.5 ? "aeolian" : "minor";
+  return dims.warmth>0 ? "dorian" : "aeolian";
+}
+function localTitle(dims,setting){
+  const q = dims.valence>=0
+      ? (dims.arousal>=0.55 ? ["Júbilo","Vértigo de luz","Euforia","Plena"] : ["Serenidad","Calma dorada","Ternura","Reposo"])
+      : (dims.arousal>=0.55 ? ["Tormenta","Furia","Vértigo","Filo"]          : ["Melancolía","Bruma","Vacío suave","Penumbra"]);
+  let base=q[Math.floor(Math.random()*q.length)];
+  if(setting) base += " de "+setting.name;
+  return base;
+}
+function localDesc(dims){
+  if(dims.valence>=0 && dims.arousal>=0.55) return "Color eléctrico que late y no quiere detenerse.";
+  if(dims.valence>=0 && dims.arousal<0.55)  return "Una luz tibia que se queda, sin prisa.";
+  if(dims.valence<0  && dims.arousal>=0.55) return "Algo intenso se acerca por el borde.";
+  return "Una corriente lenta, tenue, que se aleja.";
+}
+function synthesize(analysis){
+  const {dims,setting,text}=analysis;
+  const scale=pickScale(dims);
+  return {
+    title: localTitle(dims,setting),
+    description: localDesc(dims),
+    key: ["C","D","E","F","G","A"][Math.floor(Math.random()*6)],
+    scale,
+    tempo: Math.round(clamp(52 + dims.arousal*64 + dims.tension*8, 46, 126)),
+    energy: dims.arousal,
+    density: dims.density,
+    tension: dims.tension,
+    brightness: dims.brightness,
+    warmth: dims.warmth,
+    valence: dims.valence,
+    register: dims.brightness>0.25 ? 12 : (dims.brightness<-0.25 ? -12 : 0),
+    oscType: dims.warmth>0.25 ? "fattriangle"
+            : dims.brightness>0.25 ? "fatsawtooth"
+            : dims.warmth<-0.25 ? "sine" : "fatsine",
+    staccato: dims.arousal>0.6,
+    reverbWet: clamp(0.32 + (1-dims.arousal)*0.28 + (setting&&setting.name==="nieve"?0.15:0), 0.2, 0.62),
+    motion: pickRender(dims,setting),
+    palette: buildPalette(dims,setting),
+    dims, setting, source:text
+  };
+}
+
+/* ============================================================
+   AUDIO (Tone.js)
+   ============================================================ */
+const CHROMA=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+const KEY_PC={C:0,D:2,E:4,F:5,G:7,A:9,B:11};
+const SCALES={major:[0,2,4,5,7,9,11],minor:[0,2,3,5,7,8,10],dorian:[0,2,3,5,7,9,10],
+  phrygian:[0,1,3,5,7,8,10],lydian:[0,2,4,6,7,9,11],mixolydian:[0,2,4,5,7,9,10],aeolian:[0,2,3,5,7,8,10]};
+const noteName=midi=>CHROMA[((midi%12)+12)%12]+(Math.floor(midi/12)-1);
+
+const S={spec:null,audio:null,playing:false,raf:null,particles:[],amp:0,frame:0,
+  reduced:window.matchMedia("(prefers-reduced-motion:reduce)").matches};
+
+function disposeAudio(){
+  if(S.raf){cancelAnimationFrame(S.raf);S.raf=null;}
+  if(!S.audio) return;
+  try{
+    Tone.Transport.stop(); Tone.Transport.cancel(0);
+    const a=S.audio;
+    ["pad","bass","arp","kick","filter","lfo","reverb","delay","limiter","analyser"].forEach(k=>{
+      if(a[k]&&a[k].dispose){try{a[k].dispose();}catch(e){}}});
+    (a.loops||[]).forEach(l=>{try{l.dispose();}catch(e){}});
+  }catch(e){}
+  S.audio=null;
+}
+function buildAudio(spec){
+  disposeAudio();
+  const a={loops:[]};
+  a.reverb=new Tone.Reverb({decay: spec.warmth<-0.2?9:6, wet:spec.reverbWet});
+  a.delay=new Tone.FeedbackDelay({delayTime:"4n.",feedback:0.28,wet:spec.staccato?0.22:0.14});
+  a.limiter=new Tone.Limiter(-2);
+  a.analyser=new Tone.Analyser("waveform",256);
+  a.reverb.connect(a.delay); a.delay.connect(a.limiter);
+  a.limiter.connect(Tone.Destination); a.limiter.connect(a.analyser);
+
+  a.filter=new Tone.Filter({type:"lowpass",frequency:600+spec.brightness*900+spec.energy*1100,Q:1.2});
+  a.pad=new Tone.PolySynth(Tone.Synth,{oscillator:{type:spec.oscType},
+    envelope:{attack:spec.energy>0.6?1.1:2.4,decay:1.5,sustain:.8,release:4.5}});
+  a.pad.volume.value=-10; a.pad.connect(a.filter); a.filter.connect(a.reverb);
+  a.lfo=new Tone.LFO({frequency:0.04+spec.energy*0.08,min:520,max:1500+spec.brightness*1200+spec.energy*1200});
+  a.lfo.connect(a.filter.frequency); a.lfo.start();
+
+  a.bass=new Tone.Synth({oscillator:{type:"sine"},envelope:{attack:.4,decay:.3,sustain:.9,release:2}});
+  a.bass.volume.value=-12; a.bass.connect(a.reverb);
+
+  a.arp=new Tone.Synth({oscillator:{type:spec.brightness>0.2?"triangle":"sine"},
+    envelope:{attack:.01,decay:spec.staccato?.18:.35,sustain:spec.staccato?.02:.1,release:spec.staccato?.5:1.3}});
+  a.arp.volume.value=-16; a.arp.connect(a.delay); a.arp.connect(a.reverb);
+
+  if(spec.energy>0.55){
+    a.kick=new Tone.MembraneSynth({octaves:5,envelope:{attack:.001,decay:.3,sustain:0}});
+    a.kick.volume.value=-16; a.kick.connect(a.limiter);
+  }
+
+  const intervals=SCALES[spec.scale]||SCALES.minor;
+  const root=45+(KEY_PC[spec.key]||0)+ (spec.register<0?-12:0);
+  const pool=[]; for(let o=0;o<4;o++) for(const iv of intervals) pool.push(root+iv+12*o);
+  const len=intervals.length;
+  const progression=[0,5,3,4];
+  let chordIdx=0, arpIdx=Math.floor(len/2);
+  const chordNotes=deg=>{const b=deg%len;return [pool[b],pool[b+2],pool[b+4]].map(noteName);};
+  const bassNote=deg=>noteName(pool[deg%len]-12);
+
+  Tone.Transport.bpm.value=spec.tempo;
+  const chordLoop=new Tone.Loop(time=>{
+    const deg=progression[chordIdx%progression.length];
+    a.pad.triggerAttackRelease(chordNotes(deg),"2m",time);
+    a.bass.triggerAttackRelease(bassNote(deg),"2m",time);
+    chordIdx++;
+  },"2m").start(0); a.loops.push(chordLoop);
+
+  const sub=spec.density>0.66?"8n":spec.density>0.33?"4n":"2n";
+  const upOct=spec.register>0?14:7;
+  const arpLoop=new Tone.Loop(time=>{
+    if(Math.random()>0.18){
+      arpIdx=clamp(arpIdx+(Math.random()<.5?-1:1)*(Math.random()<.3?2:1),0,pool.length-8);
+      a.arp.triggerAttackRelease(noteName(pool[arpIdx+upOct]||pool[arpIdx]),"8n",time,0.5+Math.random()*0.4);
+    }
+  },sub).start("0:1"); a.loops.push(arpLoop);
+
+  if(a.kick){
+    const kl=new Tone.Loop(time=>a.kick.triggerAttackRelease("C1","8n",time),spec.energy>0.75?"2n":"1m").start("1m");
+    a.loops.push(kl);
+  }
+  S.audio=a; return a;
+}
+
+/* ============================================================
+   VISUAL — modos según contexto
+   ============================================================ */
+function hexToRgb(h){h=h.replace("#","");if(h.length===3)h=h.split("").map(c=>c+c).join("");
+  const n=parseInt(h.slice(0,6),16);return [(n>>16)&255,(n>>8)&255,n&255];}
+function resizeCanvas(){
+  const c=el("field"),dpr=Math.min(window.devicePixelRatio||1,2);
+  c.width=Math.floor(innerWidth*dpr); c.height=Math.floor(innerHeight*dpr);
+  c.style.width=innerWidth+"px"; c.style.height=innerHeight+"px";
+  c.getContext("2d").setTransform(dpr,0,0,dpr,0,0);
+}
+window.addEventListener("resize",resizeCanvas);
+
+function paletteRgb(spec){return spec.palette.map(hexToRgb);}
+function initParticles(spec){
+  const count=Math.round((S.reduced?260:520)+spec.energy*520);
+  const cols=paletteRgb(spec).slice(1); // saltar la base oscura
+  S.particles=new Array(count).fill(0).map(()=>({
+    x:Math.random()*innerWidth, y:Math.random()*innerHeight,
+    vx:(Math.random()-.5), vy:(Math.random()-.5),
+    r:0.6+Math.random()*1.8, c:cols[Math.floor(Math.random()*cols.length)],
+    seed:Math.random()*1000
+  }));
+}
+function recolor(spec){
+  const cols=paletteRgb(spec).slice(1);
+  for(const p of S.particles) p.c=cols[Math.floor(Math.random()*cols.length)];
+}
+function startVisuals(spec){
+  const ctx=el("field").getContext("2d");
+  const speedBase=(S.reduced?0.3:1)*(0.4+spec.energy*1.1);
+  const mode=spec.motion;
+  function step(){
+    S.frame++; const frame=S.frame;
+    let amp=0;
+    if(S.audio&&S.audio.analyser){
+      const wv=S.audio.analyser.getValue(); let sum=0;
+      for(let i=0;i<wv.length;i++) sum+=wv[i]*wv[i];
+      amp=Math.sqrt(sum/wv.length);
+    }
+    S.amp+=(amp-S.amp)*0.12; const A=S.amp;
+    const cx=innerWidth/2, cy=innerHeight/2;
+
+    ctx.globalCompositeOperation="source-over";
+    ctx.fillStyle="rgba(8,7,12,"+(S.reduced?0.3:0.15)+")";
+    ctx.fillRect(0,0,innerWidth,innerHeight);
+    ctx.globalCompositeOperation="lighter";
+
+    for(const p of S.particles){
+      let ax=0,ay=0;
+      const ang=Math.sin((p.x+frame*0.6)*0.002+p.seed)+Math.cos((p.y-frame*0.4)*0.002);
+      if(mode==="drift"||mode==="aurora"){ax=Math.cos(ang)*0.06;ay=Math.sin(ang)*0.06;}
+      else if(mode==="swirl"){const dx=p.x-cx,dy=p.y-cy;ax=-dy*0.00018;ay=dx*0.00018;ax+=Math.cos(ang)*0.04;ay+=Math.sin(ang)*0.04;}
+      else if(mode==="pulse"){const dx=p.x-cx,dy=p.y-cy,d=Math.hypot(dx,dy)||1;const push=(0.5+A*8)*Math.sin(frame*0.06);ax=dx/d*push*0.05;ay=dy/d*push*0.05;}
+      else if(mode==="rain"){ax=Math.sin(p.seed+frame*0.01)*0.03;ay=0.12+A*0.7;}
+      else if(mode==="embers"){ax=Math.sin(p.seed+frame*0.02)*0.05;ay=-(0.10+A*0.5);}
+      else if(mode==="waves"){ax=0.02;ay=Math.sin(p.x*0.012+frame*0.03+p.seed)*0.06-p.vy*0.08;}
+      else if(mode==="bloom"){const dx=p.x-cx,dy=p.y-cy,d=Math.hypot(dx,dy)||1;ax=dx/d*(0.06+A*0.6);ay=dy/d*(0.06+A*0.6);}
+      else if(mode==="frost"){ax=Math.cos(ang)*0.02;ay=Math.sin(ang)*0.02;}
+
+      const damp = mode==="frost"?0.90:0.96;
+      p.vx=(p.vx+ax)*damp; p.vy=(p.vy+ay)*damp;
+      p.x+=p.vx*speedBase*(1+A*2.5); p.y+=p.vy*speedBase*(1+A*2.5);
+      // reaparición según el modo
+      if(mode==="rain"){ if(p.y>innerHeight+20){p.y=-20;p.x=Math.random()*innerWidth;} if(p.x<-20)p.x=innerWidth+20; if(p.x>innerWidth+20)p.x=-20; }
+      else if(mode==="embers"){ if(p.y<-20){p.y=innerHeight+20;p.x=Math.random()*innerWidth;} if(p.x<-20)p.x=innerWidth+20; if(p.x>innerWidth+20)p.x=-20; }
+      else if(mode==="bloom"){ const dx=p.x-cx,dy=p.y-cy; if(Math.hypot(dx,dy)>Math.max(innerWidth,innerHeight)*0.62){p.x=cx+(Math.random()-.5)*40;p.y=cy+(Math.random()-.5)*40;p.vx=(Math.random()-.5);p.vy=(Math.random()-.5);} }
+      else { if(p.x<-20)p.x=innerWidth+20; if(p.x>innerWidth+20)p.x=-20; if(p.y<-20)p.y=innerHeight+20; if(p.y>innerHeight+20)p.y=-20; }
+
+      const glow=p.r*(1.4+A*6);
+      let alpha=clamp(0.18+A*1.6,0.05,0.85)*(mode==="frost"?0.7:1);
+      if(mode==="frost"||mode==="aurora"){ alpha*=0.6+0.4*Math.sin(frame*0.05+p.seed); }
+      ctx.beginPath();
+      ctx.fillStyle="rgba("+p.c[0]+","+p.c[1]+","+p.c[2]+","+alpha+")";
+      ctx.arc(p.x,p.y,glow,0,6.283); ctx.fill();
+    }
+
+    const hc=hexToRgb(spec.palette[3]||spec.palette[2]);
+    const hr=60+A*420;
+    const g=ctx.createRadialGradient(cx,cy,0,cx,cy,hr);
+    g.addColorStop(0,"rgba("+hc[0]+","+hc[1]+","+hc[2]+","+(0.05+A*0.22)+")");
+    g.addColorStop(1,"rgba(0,0,0,0)");
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(cx,cy,hr,0,6.283); ctx.fill();
+
+    S.raf=requestAnimationFrame(step);
+  }
+  step();
+}
+
+/* ============================================================
+   IA — capa de enriquecimiento OPCIONAL (no bloquea nada)
+   ============================================================ */
+async function enrichWithAI(text,dims){
+  const instr=`Eres un poeta sinestésico. Te doy un sentimiento en español y una lectura afectiva.
+Responde SOLO con JSON válido (sin markdown, sin backticks) con estas claves:
+"title": título poético breve en español (2-4 palabras),
+"description": una frase evocadora en español (max 16 palabras),
+"valence": número -1..1, "arousal": número 0..1.
+Sentimiento: "${text}".
+Lectura previa: valencia ${dims.valence.toFixed(2)}, activación ${dims.arousal.toFixed(2)}.`;
+  const ctrl=new AbortController();
+  const to=setTimeout(()=>ctrl.abort(),12000);
+  try{
+    const r=await fetch("https://api.anthropic.com/v1/messages",{
+      method:"POST", signal:ctrl.signal,
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:600,
+        messages:[{role:"user",content:instr}]})
+    });
+    clearTimeout(to);
+    if(!r.ok) throw new Error("api "+r.status);
+    const data=await r.json();
+    const raw=(data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("").trim();
+    const json=raw.replace(/^```(?:json)?/i,"").replace(/```$/,"").trim();
+    return JSON.parse(json);
+  }catch(e){ clearTimeout(to); return null; }
+}
+
+/* ============================================================
+   ORQUESTACIÓN
+   ============================================================ */
+const dom={};
+["field","idle","loading","now","moodInput","goBtn","examples","echo","title","desc",
+ "readout","playBtn","playLabel","regenBtn","newBtn","status","vFill","aFill","vVal","aVal"]
+ .forEach(id=>dom[id]=el(id));
+
+const EXAMPLES=["una tormenta lejana a las 3am","nostalgia de domingo por la tarde",
+  "euforia de neón en la ciudad","caminar en la nieve, sin prisa","el momento antes de dormir"];
+EXAMPLES.forEach(t=>{const c=document.createElement("button");c.className="chip";c.textContent=t;
+  c.onclick=()=>{dom.moodInput.value=t;generate(t);};dom.examples.appendChild(c);});
+
+function setStatus(msg,cls){dom.status.textContent=msg;dom.status.className=cls||"";}
+function applyAccent(spec){document.documentElement.style.setProperty("--accent",spec.palette[3]||spec.palette[2]);}
+function show(view){dom.idle.classList.toggle("hidden",view!=="idle");
+  dom.loading.classList.toggle("hidden",view!=="loading");dom.now.classList.toggle("hidden",view!=="now");}
+
+function renderNow(spec){
+  dom.echo.textContent=spec.source?"“"+spec.source+"”":"";
+  dom.title.textContent=spec.title;
+  dom.desc.textContent=spec.description;
+  const vp=Math.round((spec.dims.valence*0.5+0.5)*100);
+  const ap=Math.round(spec.dims.arousal*100);
+  dom.vFill.style.width=vp+"%"; dom.aFill.style.width=ap+"%";
+  dom.vVal.textContent=(spec.dims.valence>=0?"+":"")+spec.dims.valence.toFixed(2);
+  dom.aVal.textContent=spec.dims.arousal.toFixed(2);
+  dom.readout.innerHTML="";
+  const stats=[["tono",spec.key+" "+spec.scale],["tempo",spec.tempo+" bpm"],
+    ["movimiento",spec.motion],["textura",spec.oscType.replace("fat","")]];
+  if(spec.setting) stats.unshift(["escena",spec.setting.name]);
+  stats.forEach(([k,v])=>{const d=document.createElement("div");d.className="stat";
+    d.innerHTML=k+" · <b>"+v+"</b>";dom.readout.appendChild(d);});
+  requestAnimationFrame(()=>dom.now.classList.add("in"));
+}
+
+async function generate(text){
+  text=(text||dom.moodInput.value||"").trim();
+  if(!text){dom.moodInput.focus();return;}
+  updateHash(text);
+  dom.now.classList.remove("in");
+  show("loading"); dom.goBtn.disabled=true;
+  try{await Tone.start();}catch(e){}
+
+  // 1) NÚCLEO LOCAL (instantáneo, basado en ciencia)
+  const analysis=analyze(text);
+  const spec=synthesize(analysis);
+  S.spec=spec;
+  applyAccent(spec);
+  buildAudio(spec); initParticles(spec); resizeCanvas(); startVisuals(spec);
+  Tone.Transport.start("+0.1"); S.playing=true; updatePlay();
+  show("now"); renderNow(spec);
+  setStatus("lectura local · afecto medido");
+  dom.goBtn.disabled=false;
+
+  // 2) ENRIQUECIMIENTO IA (opcional, no bloquea; sólo afina texto/color)
+  setStatus("lectura local · consultando IA…");
+  const ai=await enrichWithAI(text,spec.dims);
+  if(ai && S.spec===spec){
+    if(ai.title) dom.title.textContent=spec.title=String(ai.title).slice(0,40);
+    if(ai.description) dom.desc.textContent=spec.description=String(ai.description).slice(0,140);
+    if(typeof ai.valence==="number"||typeof ai.arousal==="number"){
+      spec.dims.valence=clamp(lerp(spec.dims.valence, ai.valence??spec.dims.valence, .5),-1,1);
+      spec.dims.arousal=clamp(lerp(spec.dims.arousal, ai.arousal??spec.dims.arousal, .5),0,1);
+      spec.palette=buildPalette(spec.dims,spec.setting);
+      applyAccent(spec); recolor(spec); renderNow(spec);
+    }
+    setStatus("✦ afinado con IA","ai-on");
+  }else{
+    setStatus("lectura local · afecto medido");
+  }
+}
+
+function updatePlay(){dom.playBtn.innerHTML=S.playing?"&#10074;&#10074;":"&#9658;";
+  dom.playLabel.textContent=S.playing?"pausar":"reproducir";}
+
+dom.goBtn.onclick=()=>generate();
+dom.moodInput.addEventListener("keydown",e=>{if(e.key==="Enter")generate();});
+dom.playBtn.onclick=async()=>{if(!S.spec)return;await Tone.start();
+  if(S.playing){Tone.Transport.pause();S.playing=false;}else{Tone.Transport.start();S.playing=true;}updatePlay();};
+dom.regenBtn.onclick=()=>{if(S.spec)generate(S.spec.source||dom.moodInput.value);};
+dom.newBtn.onclick=()=>{Tone.Transport.pause();S.playing=false;
+  dom.moodInput.value=S.spec?(S.spec.source||""):"";show("idle");setStatus("listo");dom.moodInput.focus();};
+
+/* ============================================================
+   COMPARTIR + GUARDAR
+   ============================================================ */
+function encodeState(text){ try{return btoa(unescape(encodeURIComponent(text)));}catch(e){return "";} }
+function decodeState(h){ try{return decodeURIComponent(escape(atob(h)));}catch(e){return "";} }
+function updateHash(text){ try{ history.replaceState(null,"","#"+encodeState(text)); }catch(e){} }
+
+let _toastT=null;
+function toast(msg){
+  const t=el("toast"); t.textContent=msg; t.classList.add("in");
+  clearTimeout(_toastT); _toastT=setTimeout(()=>t.classList.remove("in"),1900);
+}
+async function copyLink(){
+  if(!S.spec) return;
+  const url=location.origin+location.pathname+"#"+encodeState(S.spec.source||"");
+  try{ await navigator.clipboard.writeText(url); toast("enlace copiado"); }
+  catch(e){ toast("copia este enlace: "+url); }
+}
+
+function wrapText(ctx,text,x,y,maxW,lh){
+  const words=(text||"").split(" "); let line="",lines=[];
+  for(const w of words){ const tt=line?line+" "+w:w;
+    if(ctx.measureText(tt).width>maxW && line){lines.push(line);line=w;} else line=tt; }
+  if(line)lines.push(line);
+  const startY=y-(lines.length-1)*lh/2;
+  lines.forEach((l,i)=>ctx.fillText(l,x,startY+i*lh));
+}
+function saveImage(){
+  if(!S.spec) return;
+  const sp=S.spec, size=1080, c=document.createElement("canvas");
+  c.width=size; c.height=size; const x=c.getContext("2d");
+  x.fillStyle="#08070c"; x.fillRect(0,0,size,size);
+  const f=el("field"); const scale=Math.max(size/f.width,size/f.height);
+  const dw=f.width*scale, dh=f.height*scale;
+  x.globalAlpha=0.95; x.drawImage(f,(size-dw)/2,(size-dh)/2,dw,dh); x.globalAlpha=1;
+  const g=x.createRadialGradient(size/2,size*0.42,0,size/2,size*0.42,size*0.85);
+  g.addColorStop(0,"rgba(8,7,12,0)"); g.addColorStop(1,"rgba(4,3,8,0.62)");
+  x.fillStyle=g; x.fillRect(0,0,size,size);
+  x.textAlign="center"; x.fillStyle="#eceaf4";
+  x.font="italic 62px Fraunces, Georgia, serif";
+  wrapText(x,sp.title,size/2,size*0.79,size*0.82,70);
+  x.font="14px 'Space Mono', monospace"; x.fillStyle="rgba(236,234,244,.6)";
+  if(sp.source) x.fillText("“"+sp.source.slice(0,52)+"”",size/2,size*0.87);
+  x.fillStyle="rgba(236,234,244,.4)"; x.font="12px 'Space Mono', monospace";
+  x.fillText("SINESTESIA  ·  "+sp.key+" "+sp.scale+"  ·  "+sp.tempo+" bpm",size/2,size*0.93);
+  c.toBlob(b=>{
+    const a=document.createElement("a"); a.href=URL.createObjectURL(b);
+    a.download=("sinestesia-"+(sp.title||"pieza")).toLowerCase().replace(/[^a-z0-9]+/g,"-")+".png";
+    a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),3000);
+  },"image/png");
+  toast("imagen guardada");
+}
+
+function escapeHtml(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+const Gallery={
+  items:[],
+  hasStore:(()=>{try{return !!(window.storage&&window.storage.get);}catch(e){return false;}})(),
+  async load(){
+    if(this.hasStore){ try{ const r=await window.storage.get("gallery",false);
+      if(r&&r.value) this.items=JSON.parse(r.value);}catch(e){} }
+    this.render();
+  },
+  async persist(){ if(this.hasStore){ try{ await window.storage.set("gallery",JSON.stringify(this.items.slice(0,40)),false);}catch(e){} } },
+  add(sp){ this.items.unshift({t:sp.title,s:sp.source,c:sp.palette[3]||sp.palette[2]});
+    this.items=this.items.slice(0,40); this.persist(); this.render();
+    el("gallery").classList.remove("hidden");
+    toast(this.hasStore?"pieza guardada":"guardada (en esta sesión)"); },
+  remove(i){ this.items.splice(i,1); this.persist(); this.render(); },
+  render(){
+    const g=el("gallery"); g.innerHTML="";
+    if(!this.items.length){ g.innerHTML='<div class="act" style="opacity:.5;cursor:default">aún no guardas piezas</div>'; return; }
+    this.items.forEach((it,i)=>{
+      const d=document.createElement("div"); d.className="gitem";
+      d.innerHTML='<span class="sw" style="background:'+(it.c||"#b8a9ff")+'"></span><span class="lbl">'+escapeHtml(it.t||"sin título")+'</span><span class="x">✕</span>';
+      d.onclick=(e)=>{ if(e.target.classList.contains("x")){ e.stopPropagation(); Gallery.remove(i); }
+        else { dom.moodInput.value=it.s||""; generate(it.s||it.t); } };
+      g.appendChild(d);
+    });
+  }
+};
+
+el("saveImgBtn").onclick=saveImage;
+el("shareBtn").onclick=copyLink;
+el("saveBtn").onclick=()=>{ if(S.spec) Gallery.add(S.spec); };
+el("galToggle").onclick=()=>{ el("gallery").classList.toggle("hidden"); };
+Gallery.load();
+
+/* abrir un enlace compartido reconstruye la pieza */
+(function fromHash(){
+  const h=location.hash.replace(/^#/,"");
+  if(h){ const txt=decodeState(h); if(txt){ dom.moodInput.value=txt; setTimeout(()=>generate(txt),350); } }
+})();
+
+resizeCanvas(); setStatus("listo");
+</script>
